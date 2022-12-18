@@ -25,3 +25,23 @@ vis_miss(subset_data,warn_large_data = FALSE,sort_miss = TRUE) + theme(text = el
 
 # Missing values article --> https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00516-9
 # Function missingno
+
+################### Données manquantes par régression linéaire #####################
+
+non_numeric_cols <- which(sapply(data, function(x) !is.numeric(x)))
+data_without_non_numeric <- subset(data, select = -non_numeric_cols)
+cols_with_missing_values <- which(sapply(data_without_non_numeric, function(x) any(is.na(x))))
+
+for (col in cols_with_missing_values) {
+  not_missing <- !is.na(data_without_non_numeric[, col])
+  x <- data_without_non_numeric[not_missing, -col]
+  y <- data_without_non_numeric[not_missing, col]
+  model <- lm(y ~ ., data = x)
+}
+
+missing <- is.na(data_without_non_numeric[, col])
+x <- data_without_non_numeric[missing, -col]
+predictions <- predict(model, newdata = x)
+data_without_non_numeric[missing, col] <- predictions
+
+
