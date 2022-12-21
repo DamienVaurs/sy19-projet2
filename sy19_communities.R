@@ -1,13 +1,5 @@
 
 
-test <- function (data) {
-  return(strsplit(data, ",")[[1]])
-}
-
-newdata <- apply(communities_data, FUN = test, MARGIN = 1)
-
-newdata2 <- t(newdata)
-
 # install.packages("visdat")
 # install.packages("ggplot2")
 library(visdat)
@@ -40,8 +32,9 @@ for (col in cols_with_missing_values) {
 }
 
 missing <- is.na(data_without_non_numeric[, col])
-x <- data_without_non_numeric[missing, -col]
-predictions <- predict(model, newdata = x)
+z <- data_without_non_numeric[missing, -col]
+options(warn=-1)
+predictions <- predict(model, newdata = z)
 data_without_non_numeric[missing, col] <- predictions
 
 
