@@ -18,6 +18,9 @@ data <- read.csv("communities_train.csv")
 # Jeu de données sans les variables non prédictives (utilisé pour la suite)
 data_without_not_predictive <- data[, -(1:5)]
 
+# Decommenter pour voir le nombre de données manquantes par variable
+# sapply(data_without_not_predictive, function(x) sum(is.na(x)))
+
 # Jeu de données dont les données manquantes ont été estimées à l'aide d'une forêt aléatoire
 data_imputed <- missForest(data_without_not_predictive)$ximp 
 
@@ -27,9 +30,27 @@ data_complete <- data[complete.cases(data), ]
 # Jeu de données sans les variables comprenant des observations incomplètes
 data_complete2 <- data[, colSums(is.na(data)) == 0]
 
-# Données manquantes estimées grâce à MICE (ne fonctionne pas)
-data_mice2 <- mice(data_without_not_predictive)
-data_mice <- data_mice2$data
+# Données manquantes estimées grâce à MICE (methode norm)
+data_mice <- data_without_not_predictive
+init = mice(data_mice, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+meth[] = "norm"
+set.seed(103)
+imputed = mice(data_mice, method=meth, predictorMatrix=predM, m=5)
+data_mice <- complete(imputed)
+sapply(data_mice, function(x) sum(is.na(x)))
+
+# Données manquantes estimées grâce à MICE
+data_mice2 <- data_without_not_predictive
+init = mice(data_mice2, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+#meth[] = "norm"
+set.seed(103)
+imputed = mice(data_mice2, method=meth, predictorMatrix=predM, m=5)
+data_mice2 <- complete(imputed)
+sapply(data_mice2, function(x) sum(is.na(x)))
 
 # Données manquantes remplacées par la moyenne des autres données
 data_mean <- data_without_not_predictive
