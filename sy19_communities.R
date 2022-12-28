@@ -7,7 +7,10 @@ library(ggplot2)
 library(randomForest)
 library(missForest)
 library(mice)
-library(missingno)
+library(caret)
+library(mclust)
+library(nnet)
+library(mgcv)
 
 # Missing values article --> https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00516-9
 # Function missingno
@@ -95,5 +98,82 @@ z <- data_without_not_predictive[missing, -col]
 options(warn=-1)
 predictions <- predict(model, newdata = z)
 data_without_not_predictive[missing, col] <- predictions
+
+
+
+
+
+################### Modèles de prédiction #####################
+
+
+split <- createDataPartition(y = data_mean$ViolentCrimesPerPop, p = 0.7, list = FALSE)
+data_train <- data_mean[split, ]
+data_test <- data_mean[-split, ]
+
+# Cross-validation avec 10 plis
+cv <- trainControl(method = "cv", number = 10)
+metric <- "MSE"
+
+
+################### Prédiction avec Mclust #####################
+
+model <- Mclust(data_mean, G = 4)
+clusters <- predict(model, data_mean)
+
+################### Prédiction avec régression linéaire #####################
+
+model <- lm(ViolentCrimesPerPop ~ ., data = data_train)
+summary(model)
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+
+results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
+print(results)
+
+################### Prédiction avec forêt aléatoire #####################
+
+model <- randomForest(ViolentCrimesPerPop ~ ., data = data_train)
+summary(model)
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+
+################### Prédiction avec réseau de neurones #####################
+
+model <- nnet(ViolentCrimesPerPop ~ ., data = data_train, size = 6, decay = 0.1)
+summary(model)
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+
+################### Prédiction avec GAM #####################
+
+variables <- names(data_train)
+variables <- variables[variables != "ViolentCrimesPerPop"]
+formula <- paste("ViolentCrimesPerPop ~", paste(variables, collapse = " + "))
+model <- gam(as.formula(formula), data = data_train)
+print(model)
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+
+k <- 10
+results <- cv.gam(data_train, formula, k = k)
+
+results <- train(formula, data = data_train, method = "gam", trControl = cv, metric = metric)
+print(results)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
