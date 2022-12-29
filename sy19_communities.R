@@ -11,6 +11,11 @@ library(caret)
 library(mclust)
 library(nnet)
 library(mgcv)
+library(e1071)
+library(MASS)
+library(glmnet)
+library(leaps)
+library(rpart)
 
 # Missing values article --> https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00516-9
 # Function missingno
@@ -28,10 +33,10 @@ data_without_not_predictive <- data[, -(1:5)]
 data_imputed <- missForest(data_without_not_predictive)$ximp 
 
 # Jeu de données sans les observations incomplètes
-data_complete <- data[complete.cases(data), ]
+data_complete <- data_without_not_predictive[complete.cases(data_without_not_predictive), ]
 
 # Jeu de données sans les variables comprenant des observations incomplètes
-data_complete2 <- data[, colSums(is.na(data)) == 0]
+data_complete2 <- data_without_not_predictive[, colSums(is.na(data_without_not_predictive)) == 0]
 
 # Données manquantes estimées grâce à MICE (methode norm)
 data_mice <- data_without_not_predictive
@@ -106,9 +111,16 @@ data_without_not_predictive[missing, col] <- predictions
 ################### Modèles de prédiction #####################
 
 
-split <- createDataPartition(y = data_mean$ViolentCrimesPerPop, p = 0.7, list = FALSE)
-data_train <- data_mean[split, ]
-data_test <- data_mean[-split, ]
+split <- createDataPartition(y = data_complete2$ViolentCrimesPerPop, p = 0.9, list = FALSE)
+data_train <- data_complete2[split, ]
+data_test <- data_complete2[-split, ]
+
+X_train <- subset(data_train, select = -ViolentCrimesPerPop)
+y_train <- data_train$ViolentCrimesPerPop
+X_test <- subset(data_test, select = -ViolentCrimesPerPop)
+y_test <- data_test$ViolentCrimesPerPop
+
+liste_mse <- list()
 
 # Cross-validation avec 10 plis
 cv <- trainControl(method = "cv", number = 10)
@@ -117,8 +129,8 @@ metric <- "MSE"
 
 ################### Prédiction avec Mclust #####################
 
-model <- Mclust(data_mean, G = 4)
-clusters <- predict(model, data_mean)
+#model <- Mclust(data_train, G = 4)
+#clusters <- predict(model, data_train)
 
 ################### Prédiction avec régression linéaire #####################
 
@@ -127,9 +139,10 @@ summary(model)
 predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
+liste_mse <- c(liste_mse, list(RegLinéaire = mse))
 
-results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
-print(results)
+#results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
+#print(results)
 
 ################### Prédiction avec forêt aléatoire #####################
 
@@ -138,6 +151,7 @@ summary(model)
 predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
+liste_mse <- c(liste_mse, list(RandomForest = mse))
 
 ################### Prédiction avec réseau de neurones #####################
 
@@ -146,6 +160,7 @@ summary(model)
 predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
+liste_mse <- c(liste_mse, list(NeuralNetwork = mse))
 
 ################### Prédiction avec GAM #####################
 
@@ -157,12 +172,92 @@ print(model)
 predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
+liste_mse <- c(liste_mse, list(GAM = mse))
 
-k <- 10
-results <- cv.gam(data_train, formula, k = k)
+#k <- 10
+#results <- cv.gam(data_train, formula, k = k)
 
-results <- train(formula, data = data_train, method = "gam", trControl = cv, metric = metric)
-print(results)
+#results <- train(formula, data = data_train, method = "gam", trControl = cv, metric = metric)
+#print(results)
+
+################### Prédiction avec Regression Lasso #####################
+
+model <- glmnet(x = X_train, y = y_train, alpha = 1)
+predictions <- predict(model, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(Lasso1 = mse))
+
+cv.out <- cv.glmnet(as.matrix(X_train), y_train, alpha=1, standardize=TRUE)
+model <- glmnet(X_train, y_train, lambda=cv.out$lambda.min, alpha=1, standardize=TRUE)
+predictions <- predict(model, s=cv.out$lambda.min, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(Lasso2 = mse))
+
+################### Prédiction avec Regression Ridge #####################
+
+model <- glmnet(as.matrix(X_train), y_train, alpha = 0, lambda = 0.1)
+predictions <- predict(model, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(Ridge1 = mse))
+
+cv.out <- cv.glmnet(as.matrix(X_train), y_train, alpha=0, standardize=TRUE)
+model <- glmnet(X_train, y_train, lambda=cv.out$lambda.min, alpha=0, standardize=TRUE)
+predictions <- predict(model, s=cv.out$lambda.min, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(Ridge2 = mse))
+
+################### Prédiction avec Regression Ridge et critère BIC #####################
+
+model <- glmnet(X_train, y_train, alpha = 0, nlambda = 100, lambda.min.ratio = 0.0001, standardize = TRUE, intercept = TRUE, score.response = "bic")
+predictions <- predict(model, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(RidgeBIC = mse))
+
+################### Prédiction avec Regression Lasso et critère BIC #####################
+
+model <- glmnet(X_train, y_train, alpha = 1, standardize = TRUE, intercept = TRUE, score.response = "bic")
+predictions <- predict(model, newx = as.matrix(X_test))
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(LassoBIC = mse))
+
+################### Prédiction avec arbre de régression #####################
+
+model <- rpart(ViolentCrimesPerPop ~ ., data = data_train, control = rpart.control(xval = 10, minbucket = 10, cp = 0))
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+#plotcp(model)
+#printcp(model)
+liste_mse <- c(liste_mse, list(RegTree = mse))
+
+i.min <- which.min(model$cptable[,4])
+cp.opt <- model$cptable[i.min,1]
+pruned_tree <- prune(model, cp=cp.opt)
+predictions <- predict(pruned_tree, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(PrunedTree = mse))
+
+################### Prédiction avec subset selection variables #####################
+
+model <- regsubsets(ViolentCrimesPerPop ~.,data=data_train, method='forward', nvmax=30)
+res.forward <- summary(model)
+best <- which.min(res.forward$bic)
+ntst <- nrow(as.matrix(X_test))
+X <- cbind(rep(1,ntst),as.matrix(X_test))
+ypred<-X[,res.forward$which[best,]]%*%coef(model,best)
+mse <-mean((ypred-data_test$ViolentCrimesPerPop)^2)
+liste_mse <- c(liste_mse, list(SubSelVar = mse))
+
+
+
+
 
 
 
