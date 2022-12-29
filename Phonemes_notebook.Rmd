@@ -1,0 +1,75 @@
+---
+title: "Phonemes"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+# Données Phonemes
+
+## Analyse exploratoire
+
+Le jeu de données fournit le *log-périodogramme* de taille 256 de 2250 extraits sonores de 5 sons appelés *phonemes* notés aA, ao, dcl, iy, et sh. Un log-périodogramme est un graphique permettant de renseigner le contenu d'un signal temporel. *Phonemes* est donc un problème de classification qui comporte :
+
+-   256 données d'entraînement
+
+-   256 prédicteurs quantitatifs représentant le log-périodogramme calculé pour chaque fréquence X1-X256
+
+-   Y, variable de réponse nominale dont la valeur peut être l'une des cinq classes aa, ao, dcl, iy, she.
+
+Nous pouvons voir dans un premier temps que les classes sont globalement équiréparties :
+
+![](Rplot_exploratoire.png){width="382"}
+
+*Figure 1 : Répartition des classes au sein du jeu de données*
+
+Au vu du grand nombre de prédicteurs, il sera peut-être nécessaire de déterminer lesquels seront réellement significatifs pour notre étude. En effet, chaque variable correspond à une fréquence pour une trame de parole (*speech frame*) donnée, et nous cherchons ici à retrouver la même fréquence pour chaque trame successive : il faut donc isoler et observer quelles trames sont réellement intéressantes. Il est donc intéressant de tracer le pourcentage expliqué de la variance pour chaque dimension calculée, qui resulte d'une Analyse en Composantes Principales.
+
+![](PCA_EIGEN_VALUES.png){width="429"}
+
+*Figure 2*
+
+Dans cette étude, nous allons dans un premier temps étudier les performances des différents modèles consitutés avec tous les 256 prédicteurs, puis de remplacer les 256 prédicteurs initiaux par les 15 premières composantes principales rendant compte de 85,4% de la variance expliquée, et d'en comparer les erreurs de classification. Enfin, il serait intéressant de tester diverses méthodes de sélection de sous-ensemble afin d'en déterminer le plus optimal.
+
+## Mode opératoire
+
+Afin de construire la fonction de prédiction, il est nécessaire de tester différents modèles, selon le mode opératoire suivant :
+
+-   Test du modèle sur les données mises à l'échelle contenant l'ensemble des prédicteurs
+
+-   Réalisation d'une ACP sur les données brutes afin de conserver uniquement les composantes principales évoquées précédemment. Puis, application des différents modèles sur ces nouvelles données afin d'en comparer les performances
+
+-   Application de méthodes de sélection de sous-ensembles sur le jeu de données non traité, en sélectionnant un nombre de prédicteurs optimal, pour des méthodes ascendantes et descendantes. Cette sélection de sous-ensemble peut s'avérer ici pertinente au vu de la nature des données : comme évoqué ci-dessus, sélectionner uniquement les fréquences significatives risque de déboucher sur de meilleures prédictions.
+
+Pour estimer l'erreur de classification associée à chaque modèle, nous procéderons systématiquement à une **validation croisée imbriquée à dix plis**, consitutée de deux boucles internes : la première sélectionnera le sous-ensemble optimal, la deuxième aura pour but d'optimiser la valeur du second hyperparamètre en fonction du sous-ensemble déterminé dans la première boucle. En effet, certaines méthodes requièrent par nature l'estimation d'un hyperparamètre. C'est pourquoi, pour ces dernières, il sera systématiquement nécessaire d'estimer **deux** hyperparamètres : le sous-ensemble optimal et le facteur de pénalisation C.
+
+## Modèles considérés
+
+L'objectif a été ici de déterminer le meilleur modèle, en augmentant graduellement la complexité des méthodes considérés. Le point de départ fut des modèles très simples comme la méthode des k plus proches voisins, mais encore l'analyse discriminante linéaire ou quadratique, ainsi que la construction d'un classifieur naïf bayésien. Ensuite, il a été intéressant de se pencher sur des modèles de mélange gaussien, puis des méthodes basées sur les arbres de décision, telles que le *bagging* ou les forêts aléatoires. Enfin, nous avons essayé des modèles avec machine à vecteurs de support, qui sont une généralisation des classifieurs linéaires. Cependant, nous avons choisi de ne pas implémenter de réseaux de neurones, méthodes trop complexes dont les résultats ne seraient ici pas forcément concluants. En effet, ce sont des méthodes dont l'apprentissage est long, gourmand en ressources et elles produisent des solutions dont l'interprétation est plus difficile qu'en apprentissage classique.
+
+## Comparaison des modèles
+
+Afin de comparer les performances de chaque modèle, il est pertinent d'en comparer les erreurs de classification et les afficher sur un graphique commun. Nous fixons un seuil arbitraire de 0.07 comme taux d'erreur étalon.
+
+![](IC_RAW_FINAL_2.png){width="558"} *Figure 3*
+
+![](IC_PCA_FINAL_2.png) *Figure 4*
+
+![](IC_SUBSET_FINAL_2.png) *Figure 5*
+
+La modification du jeu de données permettant la meilleure amélioration des performances globales est la sélection de sous-ensemble, avec, selon les cas, une sélection ascendante ou descendante. Les méthodes les plus performantes sont l'Analyse Discriminante Linéaire (*LDA*) (qui nous laisse penser que l'hypothèse d'homocédasticité est valide), la méthode d'extraction de caractéristiques (*FDA*), et les diverses machines à vecteurs de supports (*SVM*) implémentées. La méthode des k plus proches voisins (*KNN*) fonctionne seulement avec un nombre de prédicteurs optimal, mais c'est surtout le modèle de forêt aléatoire qui fonctionne très bien dans ce cas-ci, puisqu'on ne construit les arbres qu'avec les prédicteurs significatifs. Ainsi, les ramifications inutiles ne sont pas construites, et donc les performances meilleures.
+
+L'analyse discriminante quadratique (QDA) repose sur l'hypothèse de frontières quadratiques, et est un modèle très général ce qui pourrait expliquer ses mauvaises performances. L'utilisation d'un classifieur naïf bayésien suppose quant à elle que les matrices de covariances soient diagonales, ce qui est une hypothèse peut-être trop simplificatrice. Enfin, ces deux modèles reposent sur une hypothèse de distribution gaussienne, qui ne semble pas réaliste ici.
+
+## Résultat
+
+Le modèle retenu est la machine à vecteurs de support à noyau Laplacien, qui présente la plus petite erreur de classification parmi tous les modèles. Suite à la validation croisée à 10 plis, le sous-ensemble optimal est composé des 36 prédicteurs suivants : X4, X5, X6, X10, X14, X18, X20, X22, X24, X34, X42, X73, X82, X92, X97, X99, X111, X115, X125, X132, X142, X144, X148, X152, X162, X163, X166, X170, X177, X196, X212, X214, X216,\
+X226, X236, X251. Comme dit précédemment, étant donné qu'il y a deux paramètres à optimiser, nous utilisons ce sous-ensemble afin d'optimiser le facteur C, encore une fois avec une validation croisée à 10 plis afin d'obtenir une estimation plus robuste. La valeur optimale est C = 26, qui nous permet d'obtenir une erreur de classification de 0.067. 
+
+## Interprétation et axes d'améliorations
+
+En effectuant une sélection de variables, l'objectif était d'inclure cette phase de sélection de variable au sein de chaque validation croisée, en déterminant le meilleur sous-ensemble de prédicteur à utiliser au début de chaque itération pour un certain nombre de prédicteurs, et ce pour chaque nombre de prédicteurs possibles. Ainsi, nous aurions obtenu le taux d'erreur en fonction du nombre de prédicteur et nous aurions pu déterminer le modèle plus parcimonieux avec un taux d'erreur faible en appliquant la *one-standard-error rule*. Cependant, par manque de ressources et de temps, nous n'avons pas réussi à implémenter cette méthode.
