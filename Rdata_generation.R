@@ -1,22 +1,20 @@
 # 1. Apprentissage des modèles.
-model.phoneme <- ...
+model.phoneme <- model.phoneme
 model.robotics <- ...
-model.communities <- ...
+model.communities <- model_final
 # 2. Création des fonctions de prédiction
 prediction_phoneme <- function(dataset) {
-  # Ne pas oublier de charger **à l’intérieur de la fonction** les
-  # bibliothèques utilisées.
-  library(...)
-  # Attention à ce que retourne un modèle en prédiction. Par exemple,
-  # la lda retourne une liste nommée. On sélectionne alors les
-  # classes.
-  predict(clas, test_set)$class
+  library(kernlab)
+  predictors <- c(FALSE,FALSE , FALSE , TRUE , TRUE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , TRUE , FALSE , TRUE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , TRUE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , TRUE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , FALSE , TRUE , FALSE , FALSE , FALSE , FALSE , FALSE)
+  
+  testset <- dataset[,predictors]  
+  predict(model.phoneme,newdata=testset,type="response")
 }
 prediction_robotics <- function(dataset) {
   ...
 }
 prediction_communities <- function(dataset) {
-  ...
+  prediction_communities <- predict(model, newdata = dataset)
 }
 # 3. Sauvegarder sous forme de fichier .Rdata les fonctions
 # ’prediction_phoneme’, ’prediction_robotics’, ’prediction_communities’.

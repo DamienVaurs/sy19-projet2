@@ -22,6 +22,7 @@ library(rpart)
 
 
 data <- read.csv("communities_train.csv")
+tab_mse <- table(x = "modele", y = "mse")
 
 # Jeu de données sans les variables non prédictives (utilisé pour la suite)
 data_without_not_predictive <- data[, -(1:5)]
@@ -140,9 +141,10 @@ predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
 liste_mse <- c(liste_mse, list(RegLinéaire = mse))
+tab_mse <- rbind(modele = "RegLinéaire", mse = mse)
 
-#results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
-#print(results)
+results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
+print(results)
 
 ################### Prédiction avec forêt aléatoire #####################
 
@@ -152,6 +154,7 @@ predictions <- predict(model, newdata = data_test)
 mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
 liste_mse <- c(liste_mse, list(RandomForest = mse))
+tab_mse <- rbind(modele = "RandomForest", mse = mse)
 
 ################### Prédiction avec réseau de neurones #####################
 
@@ -254,6 +257,8 @@ X <- cbind(rep(1,ntst),as.matrix(X_test))
 ypred<-X[,res.forward$which[best,]]%*%coef(model,best)
 mse <-mean((ypred-data_test$ViolentCrimesPerPop)^2)
 liste_mse <- c(liste_mse, list(SubSelVar = mse))
+
+plot(liste_mse[])
 
 
 
