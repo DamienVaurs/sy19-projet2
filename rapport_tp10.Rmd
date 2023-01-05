@@ -1,0 +1,338 @@
+---
+title: "TP_10 Donnees Robotics"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+#Données
+
+##Extraction des données
+
+Le fichier contient des données relatives aux mouvements d'un bras de robot. Il y a 4000 cas d'apprentissage, huit prédicteurs et une variable de réponse (dernière colonne).
+
+```{r include=FALSE}
+data <- read.table('robotics_train.txt')
+attach(data)
+names(data)
+head(data)
+dim(data)
+
+set.seed(5)
+
+boxplot(y)  
+
+index <- sample(nrow(data), 0.8*nrow(data))
+train <- data[index,]
+test <- data[-index,]
+
+y.train <- train[,9]
+ntrain <- length(train$y)
+ntest <- length(test$y)
+
+n <- nrow(data)
+p <- ncol(data)
+```
+
+On sépare les données en 80% de données d'entraînements et 20% de données de test de manière aléatoire. Par la suite nous évaluerons le MSE par validation croisée afin de pouvoir comparer les modèles en eux.
+
+## Estimation du modèle et des graphes de résidus
+
+```{r echo = FALSE}
+modlin=lm(y~., data)
+# Residus
+res=residuals(modlin)
+# Histograme et QQ plot 
+par(mfrow=c(1,3))
+hist(residuals(modlin))
+qqnorm(res)
+qqline(res, col = 2)
+# Residus
+plot(modlin$fitted.values,res, asp=1)
+
+```
+
+Les hypothèses du modèle lineaire ne semblent pas etre valable car les residus ne sont pas gaussiens (test de Shapiro-Wilk). Cependant dans le cas qu'un échantillon de grande taille, ce modèle reste robuste et peux convenir. C'est pour cela que nous le testons par la suite.
+
+## Matrice de correlation
+
+```{r echo=FALSE}
+library(corrplot)
+corrplot::corrplot(cor(data), type="upper", tl.col="black", tl.srt=45)
+```
+
+Dans un premier temps, nous nous sommes intéressés à la corrélation entre les variables explicatives et y et on remarque juste une faible correlation entre X6 et y et une correlation quasi inexistante entre variables explicatives.
+
+## Regularisation
+
+On va utiliser la régularisation pour tenter d'aider le modèle à mieux généraliser sur les données de test. Sélection de la pénalité par validation croisée.
+
+### Multiple Linear Regression, LinearRidge & Lasso
+
+```{r}
+library(glmnet)
+library(Metrics)
+linear <- lm(y~., data = train)
+
+cv.lasso <- cv.glmnet(as.matrix(train[,1:(p-1)]), train[,p], type.measure="mse", alpha=1, family = "gaussian")$lambda.min
+
+cv.ridge <- cv.glmnet(as.matrix(train[,1:(p-1)]), train[,p],type.measure="mse", alpha=0, family = "gaussian")$lambda.min
+
+lasso <- glmnet(as.matrix(train[,1:(p-1)]),train[,p], type.measure="mse", alpha=1, family = "gaussian", lambda = cv.lasso)
+
+ridge <- glmnet(as.matrix(train[,1:(p-1)]),train[,p], type.measure="mse", alpha=1, family = "gaussian", lambda = cv.ridge)
+
+# prediction
+pred.linear <- predict(linear, test[,1:(p-1)])
+pred.lasso <- predict(lasso, s=lasso$lambda.1se, as.matrix(test[,1:(p-1)]))
+pred.ridge <- predict(ridge, s=ridge$lambda.1se, as.matrix(test[,1:(p-1)]))
+
+# mse
+mse.linear <- mse(test$y, pred.linear)
+mse.lasso <- mse(test$y, pred.lasso)
+mse.ridge <- mse(test$y, pred.ridge)
+
+cat(mse.linear,' ',mse.lasso,' ',mse.ridge)
+
+
+
+```
+
+### ElasticNet
+
+```{r include = FALSE}
+library(glmnet)
+library(Metrics)
+set.seed(5)
+
+list.of.fits <- list()
+for (i in 0:10) {
+  fit.elastic <- paste0("alpha", i/10)
+  
+  list.of.fits[[fit.elastic]] <- cv.glmnet(as.matrix(train[,1:(p-1)]), train[,p], type.measure = "mse", alpha=i/10, family="gaussian")
+  
+}
+
+results <- data.frame()
+for (i in 0:10) {
+  fit.elastic <-paste0("alpha", i/10)
+  
+  pred.elastic <- predict(list.of.fits[[fit.elastic]], s=list.of.fits[[fit.elastic]]$lambda.1se, newx=as.matrix(test[,1:(p-1)]))
+  
+  mse <- mean((test$y - pred.elastic)^2)
+  
+  temp <- data.frame(alpha=i/10, mse=mse, fit.elastic=fit.elastic)
+  results <- rbind(results, temp)
+  
+  results
+  
+}
+```
+
+On se propose de tester 3 régularisations différentes : le ridge (α = 0), le lasso (α = 1) et elasticnet dont la valeur de alpha est déterminée par CV (ici alpha = 0.7 qui a la plus petite mse).
+
+On utilise le package glmnet sur les trois modèles étudiés précédemment. Les performances des modèles résultants seront mesurées par le MSE.
+
+Le tableau récapitulatif des résultats est le suivant :
+
+| M. Linear Reg | Ridge (alpha = 0) | Lasso (alpha = 1) | Elastic Net (alpha = 0.7) |
+|------------------|------------------|------------------|------------------|
+| 0.04150581    | 0.04309983        | 0.04150493        | 0.04204704                |
+
+##Reduction de dimension \### PCR
+
+```{r echo=FALSE}
+library(pls)
+pcr_model <- pcr(y~., data = train, scale = TRUE, validation = "CV")
+validationplot(pcr_model, val.type="MSEP")
+```
+
+On constate que, d'après l'analyse en composante principale, pour détenir le plus d'informations il nous faut garder les memes 8 composantes.
+
+```{r include = FALSE}
+pcr_pred <- predict(pcr_model, test, ncomp = 8)
+mean((pcr_pred - test[["y"]])^2)
+```
+
+Ainsi, on obtient :
+
+| PRC        | Résultat   |
+|------------|------------|
+| Composante | 8          |
+| MSE        | 0.04150581 |
+
+## Normalisation des données
+
+Dans certains cas, normaliser les données peut améliorer les performances de modèles. Tous les tests effectués précédemment ont également été faits sur les données normalisée mais n'a apporté aucune amélioration. Pour une question de lisibilité, on n'a pas considéré nécessaire de rajouter ces résultats. Ceci sont prévisibles : la normalisation étant une simple transformation linéaire, la régression l'apprend au besoin.
+
+### Régression linéaire
+
+```{r}
+library(caret)
+ctrl <- trainControl(method = "cv", number = 10)
+
+lin.model <- train(y~., data=train, method="lm", trcotrol=ctrl)
+
+lin.model.pred <- predict(lin.model, test)
+error <- lin.model.pred - test[["y"]]
+MSE <- mean(error^2)
+print(MSE)
+
+```
+
+La mse reste la meme 0.04150581
+
+### KNN - Plus proche voisin
+
+```{r}
+library(caret)
+ctrl <- trainControl(method = "cv", number = 10)
+
+knn.model <- train(y~., data=train, method="knn", trcotrol=ctrl)
+
+knn.model.pred <- predict(knn.model, test)
+error <- knn.model.pred - test[["y"]]
+MSE <- mean(error^2)
+print(MSE)
+  
+```
+
+Le modele basé sur KNN perfome mieux que les autres vus precedemment avec une mse de 0.01599222.
+
+### Régression Multinoniale
+
+La régression multinoniale est assez limitée quant aux modèles mis en place, on se focalisera plus sur les splines, en particulier les modèles additifs. De plus le nombre de combinaison est trop grand, ce qui nous empêche de tester.
+
+```{r include = FALSE}
+# library(nnet)
+# multinom.model <- multinom(y~., data=train)
+# 
+# multinom.model.pred <- predict(multinom.model, test)
+# error <- multinom.model.pred - test[["y"]]
+# MSE <- mean(error^2)
+# print(MSE)
+
+```
+
+### Splines
+
+Dans le cas d'un modèle multi-dimensionnel, les splines basiques, naturelles et smooth ne s'appliquent pas. On peut faire appel aux tensors mais la dimension croit exponentiellement et on perd cruellement en interpretabilité. Pour palier à ce problème, on utilise les GAM (Generalized Additive Models). Ce modèle est bon pour expliquer mais reste souvent moins performant pour prédire.
+
+```{r include=FALSE}
+library(gam)
+gam.model <- gam(y ~ ns(X1,df=5) + ns(X2,df=5) + ns(X3,df=5) + ns(X4,df=5) + ns(X5,df=5) + ns(X6,df=5) + ns(X7,df=5) + ns(X8,df=5), data = train)
+gam.pred <- predict(gam.model, newdata=test)
+error <- gam.pred - test[["y"]]
+MSE <- mean(error^2)
+print(MSE)
+```
+
+
+```{r}
+library(gam)
+idx.train <- sample(n, ntrain) 
+gam.model2 <- gam(y ~ s(X1) + s(X2) + s(X3) + s(X4) + s(X5) + s(X6) + ns(X7) + s(X8), subset = idx.train, data = data, trace=TRUE)
+gam.pred2 <- predict(gam.model2, newdata=data[-idx.train,])
+error <- gam.pred2 - test[["y"]]
+MSE <- mean(error^2)
+print(MSE)
+```
+
+Ainsi, on obtient une mse de 0.04047486. Donc moins performant comme nous l'attendions.
+
+### SVR
+
+```{r include=FALSE}
+library(caret)
+set.seed(5)
+tuneGrid <- expand.grid(
+  C = c(0.25, 0.5, 1),
+  sigma = 0.1
+)
+ctrl <- trainControl(method = "cv", number = 10)
+
+svr.model <- train(y~., data=train, method="svmRadial", trcotrol=ctrl, tuneGrid = tuneGrid)
+
+svr.model.pred <- predict(svr.model, test)
+error <- svr.model.pred - test[["y"]]
+MSE <- mean(error^2)
+print(MSE)
+  
+```
+
+On obtient une mse basse de 0.01133188.
+
+
+### Regression Trees
+```{r}
+idx.train <- sample(n, ntrain) 
+
+tree.robotics <- rpart(y ~ ., data = data, subset = idx.train,
+                       method = "anova",
+                       control = rpart.control(xval=10, minbucket = 10, cp = 0))
+summary(tree.robotics)
+rpart.plot(tree.robotics, box.palette="RdBu", shadow.col="gray",
+           fallen.leaves=FALSE)
+
+pred.tree <- predict(tree.robotics, newdata = data[-idx.train,])
+y.test <- data$y[-idx.train]
+mse.tree <- mean((y.test - pred.tree)^2)
+printcp(tree.robotics)
+plotcp(tree.robotics)
+
+print(mse.tree)
+```
+L'arbre de regression n'a apoorté aucune amelioration de performance et sa mse est de 0.03890473
+
+### Prunning
+```{r}
+i.min <- which.min(tree.robotics$cptable[,4])
+cp.opt <- tree.robotics$cptable[i.min,1]
+
+pruned_tree <- prune(tree.robotics, cp=cp.opt)
+rpart.plot(pruned_tree, box.palette ="RdBu", shadow.col = "gray",
+           fallen.leaves = FALSE)
+pred.tree <- predict(pruned_tree, newdata=data[-idx.train,])
+y.test <- data$y[-idx.train]
+mse.tree.pruned <- mean((y.test-pred.tree)^2)
+mse.tree.pruned
+# 0.03872515
+plot(y.test, pred.tree)
+```
+
+
+### Bagging
+```{r}
+library(randomForest)
+p <- ncol(data)-1
+fit.bag <- randomForest(y~., data=data, subset=idx.train, mtry=p)
+
+pred.bag <- predict(fit.bag, newdata=data[-idx.train,])
+y.test <- data$y[-idx.train]
+mse.bag <- mean((y.test-pred.bag)^2)
+mse.bag
+# 0.0227066
+plot(y.test, pred.bag)
+
+roc_tree_bagged <- roc(y.test, prob[,1])
+
+
+```
+
+
+### Random Forest
+```{r}
+library(randomForest)
+fit.rf <- randomForest(y~., data=data,subset=idx.train)
+pred.rf <- predict(fit.rf, newdata=data[-idx.train,])
+mse.rf <- mean((y.test-pred.rf)^2)
+mse.rf
+## [1] 11.97363
+plot(y.test, pred.tree)
+points(y.test, pred.rf, col="red", pch=2)
+```
+
+
+# Conclusion
+
+Après une étude de différents modèles en fonction de la structure de nos données, il se trouve que le modèle basé sur le SVR donne un MSE minimum de 0.01133188.
