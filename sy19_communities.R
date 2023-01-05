@@ -257,6 +257,11 @@ liste_mse <- c(liste_mse, list(SubSelVar = mse))
 
 
 
+model_final <- randomForest(ViolentCrimesPerPop ~ ., data = data_complete2)
+summary(model)
+
+
+
 
 
 
