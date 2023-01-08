@@ -13,7 +13,7 @@ The file contains data related to kinematics of a robot arm. There are 4000 lear
 
 Let's state X1,..X8 the independent variables, to represent the joints of the robot arm and Y, the dependent variable, to represent the location of the tip of the arm, given the angles of the joints.
 
-It is a multi-dimensional regression task beacause we have 8 quantitative independent variables, and the problem is to predict the values of Y given X1,...X8.
+It is a multi-dimensional regression task because we have 8 quantitative independent variables, and the problem is to predict the values of Y given X1,...X8.
 
 We sample the data randomly with the function sample() and partition them with a partition index of 0.8 to get 80% of the data for the training set and the rest for the test set.
 
@@ -27,7 +27,7 @@ As we can see there no correlation between the variables nor with the dependent 
 
 ![](images/residuals-01.png){width="430"}
 
-Hypotheses of linear model don't seem to be valid here because the residuals are non - gaussian ( test of shapiro - wilk). However in the case of a big sample, this model remains robust and can fit. That's why we will test it.
+Hypotheses of linear model don't seem to be valid here because the residuals are non Gaussian ( test of shapiro - wilk). However in the case of a big sample, this model remains robust and can fit. That's why we will test it.
 
 ## Regularization
 
@@ -35,7 +35,7 @@ We will use regularization just to help the model to generalize well on the test
 
 ### Ridge, Lasso and ElasticNet
 
-The table represents the values of the MSE on dataset depending on the parameter α for the 3 models. We test these 3 different regularizations : Ridge (α = 0), lasso (α = 1) and elasticNet where the value of α is determined by cross validation.
+The table represents the values of the MSE on dataset depending on the parameter alpha for the 3 models. We test these 3 different regularizations : Ridge (alpha= 0), lasso (alpha = 1) and elasticNet where the value of alpha is determined by cross validation.
 
 We use the glmnet package on the 3 models.
 
@@ -82,7 +82,7 @@ As the hypotheses for linearity were not valid for this dataset, moving beyond l
 
 The multinonial regression is quite limited as for the models set up, we will focus more on the splines, in particular the additive models.
 
-### Splines 
+### Splines
 
 In the case of a multidimensional model, the basic, natural and smooth splines do not apply. We can use the tensors but the dimension increases exponentially and we cruelly lose in interpretability. To overcome this problem, GAMs (Generalized Additive Models) are used. This model is good at explaining but often remains less efficient at predicting.
 
@@ -108,9 +108,9 @@ SVR models perform well on a wide range of data, especially when the data has la
 
 We use 'svmRadial' function as the kernel function as it uses a radial basis function kernel.
 
-We define a range of of values for the cost C and sigma and use the `expand.grid` function to create a grid of all possible combinations of C and sigma values.
+We define a range of of values for the cost C and sigma and use the expand.grid function to create a grid of all possible combinations of C and sigma values.
 
-After training, the best C and sigma for this model are `10` and `0.1` respectively.
+After training, the best C and sigma for this model are 10 and 0.1 respectively and the model performed very well with an mse of 0.006160302
 
 We plot the residual plot to assess the model
 
@@ -119,4 +119,5 @@ We plot the residual plot to assess the model
 It shows randomly distributed points around the x-axis indicating that the errors are randomly distributed and not systematically biased.
 
 ## Conclusion
+
 After a study of different models depending on the structure of our data, it turns out that the SVR-based model gives a minimum MSE of 0.006160302.
