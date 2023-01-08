@@ -16,6 +16,7 @@ library(MASS)
 library(glmnet)
 library(leaps)
 library(rpart)
+set.seed(123)
 
 # Missing values article --> https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00516-9
 # Function missingno
@@ -109,12 +110,18 @@ data_without_not_predictive[missing, col] <- predictions
 
 
 
+
+
 ################### Modèles de prédiction #####################
 
 
 split <- createDataPartition(y = data_complete2$ViolentCrimesPerPop, p = 0.9, list = FALSE)
 data_train <- data_complete2[split, ]
 data_test <- data_complete2[-split, ]
+
+split <- createDataPartition(y = data_without_not_predictive$ViolentCrimesPerPop, p = 0.9, list = FALSE)
+data_train2 <- data_without_not_predictive[split, ]
+data_test2 <- data_without_not_predictive[-split, ]
 
 X_train <- subset(data_train, select = -ViolentCrimesPerPop)
 y_train <- data_train$ViolentCrimesPerPop
@@ -126,6 +133,10 @@ liste_mse <- list()
 # Cross-validation avec 10 plis
 cv <- trainControl(method = "cv", number = 10)
 metric <- "MSE"
+
+fit <- regsubsets(ViolentCrimesPerPop ~ ., data = data_train, really.big = T)
+summary(fit)
+plot(fit, scale = "Cp")
 
 
 ################### Prédiction avec Mclust #####################
@@ -143,7 +154,7 @@ print(mse)
 liste_mse <- c(liste_mse, list(RegLinéaire = mse))
 tab_mse <- rbind(modele = "RegLinéaire", mse = mse)
 
-results <- train(ViolentCrimesPerPop ~ ., data = data_mean, method = "lm", trControl = cv, metric = metric)
+results <- train(ViolentCrimesPerPop ~ ., data = data_complete2, method = "lm", trControl = cv, metric = metric)
 print(results)
 
 ################### Prédiction avec forêt aléatoire #####################
@@ -155,6 +166,13 @@ mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
 print(mse)
 liste_mse <- c(liste_mse, list(RandomForest = mse))
 tab_mse <- rbind(modele = "RandomForest", mse = mse)
+
+model <- train(ViolentCrimesPerPop ~ ., data = data_train, method = "rf", trControl = trainControl(method = "cv", number = 10))
+predictions <- predict(model, newdata = data_test)
+mse <- mean((predictions - data_test$ViolentCrimesPerPop)^2)
+print(mse)
+liste_mse <- c(liste_mse, list(RandomForestCV = mse))
+tab_mse <- rbind(modele = "RandomForestCV", mse = mse)
 
 ################### Prédiction avec réseau de neurones #####################
 
@@ -258,13 +276,19 @@ ypred<-X[,res.forward$which[best,]]%*%coef(model,best)
 mse <-mean((ypred-data_test$ViolentCrimesPerPop)^2)
 liste_mse <- c(liste_mse, list(SubSelVar = mse))
 
-plot(liste_mse[])
-
 
 
 model_final <- randomForest(ViolentCrimesPerPop ~ ., data = data_complete2)
 summary(model)
 
+keys <- names(liste_mse)
+values <- unname(liste_mse)
+plot(t(keys), values, type="b", xlab="Clés", ylab="Valeurs")
+plot(unlist(liste_mse))
+
+
+model_names
+ggplot(df, aes(x=model_names, y=mse_values)) + geom_bar(stat="identity")
 
 
 
